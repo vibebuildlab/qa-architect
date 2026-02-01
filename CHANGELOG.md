@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.11.1] - 2026-01-31
+
+### Fixed
+
+- **Husky v9/v10 Compatibility**: Removed deprecated `husky.sh` references from all generated hooks
+  - Removed `#!/bin/sh` + `. husky.sh` source lines from generated pre-commit and pre-push hooks
+  - Fixes deprecation warnings in Husky v9 and prevents breakage in v10
+  - Affects `setup.js` and `lib/smart-strategy-generator.js`
+- **Security**: Fixed high-severity `tar` vulnerability (bumped to 7.5.7)
+
+## [5.11.0] - 2026-01-27
+
+### Changed
+
+- **Layered Testing Strategy**: Implemented industry best practice "fail fast locally, verify comprehensively remotely"
+  - Pre-commit: lint + format staged files (<5s)
+  - Pre-push: type check + tests on changed files (<30s)
+  - CI: full test suite + security (3-10 min)
+  - CI no longer re-runs lint/format (pre-commit already did it)
+- **Simplified Tier System**: Removed Team/Enterprise tiers (FREE + PRO only)
+
+### Fixed
+
+- Removed lighthouse from CLI project (web-app-only tool)
+- Disabled false-positive security ESLint rules for CLI context
+- Resolved all 23 ESLint no-unused-vars errors
+- Updated gitleaks config for v8 compatibility
+- Fixed test coverage threshold failure
+
 ## [5.10.4] - 2026-01-21
 
 ### Fixed
