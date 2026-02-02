@@ -240,12 +240,104 @@ function injectCollaborationSteps(workflowContent, options = {}) {
 
   if (workflowContent.includes('# PR_COMMENTS_PLACEHOLDER')) {
     const prSteps = enablePrComments
-      ? `      - name: Post PR summary comment\n        if: github.event_name == 'pull_request'\n        uses: actions/github-script@v7\n        with:\n          script: |\n            const summaryPath = process.env.GITHUB_STEP_SUMMARY\n            const fs = require('fs')\n            const body = summaryPath && fs.existsSync(summaryPath)\n              ? fs.readFileSync(summaryPath, 'utf8')\n              : 'Quality checks completed.'\n            const { context, github } = require('@actions/github')\n            await github.rest.issues.createComment({\n              owner: context.repo.owner,\n              repo: context.repo.repo,\n              issue_number: context.payload.pull_request.number,\n              body,\n            })\n`
+      ? `      - name: Post actionable PR comment
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: \${{ github.event.pull_request.number }}
+          TESTS_RESULT: \${{ needs.tests.result }}
+          SECURITY_RESULT: \${{ needs.security.result }}
+          DOCS_RESULT: \${{ needs.documentation.result }}
+          COVERAGE_RESULT: \${{ env.COVERAGE_RESULT || 'skipped' }}
+        run: |
+          BLOCKING=""
+          WARNINGS=""
+          PASSED=""
+
+          # Detect package manager for fix commands
+          if [ -f pnpm-lock.yaml ]; then PM="pnpm"
+          elif [ -f yarn.lock ]; then PM="yarn"
+          elif [ -f bun.lockb ]; then PM="bun"
+          else PM="npm"; fi
+
+          # Classify results
+          if [ "$TESTS_RESULT" = "failure" ]; then
+            BLOCKING="$BLOCKING\\n- **Tests**: Test failures — \\\`$PM test\\\` to run locally"
+          elif [ "$TESTS_RESULT" = "success" ]; then
+            PASSED="$PASSED\\n- **Tests**: All checks passed"
+          fi
+
+          if [ "$SECURITY_RESULT" = "failure" ]; then
+            BLOCKING="$BLOCKING\\n- **Security**: Vulnerabilities found — \\\`$PM audit\\\` to check locally"
+          elif [ "$SECURITY_RESULT" = "success" ]; then
+            PASSED="$PASSED\\n- **Security**: All checks passed"
+          fi
+
+          if [ "$DOCS_RESULT" = "failure" ]; then
+            WARNINGS="$WARNINGS\\n- **Docs**: Documentation issues — check CI logs for details"
+          elif [ "$DOCS_RESULT" = "success" ]; then
+            PASSED="$PASSED\\n- **Docs**: All checks passed"
+          fi
+
+          if [ "$COVERAGE_RESULT" = "failure" ]; then
+            WARNINGS="$WARNINGS\\n- **Coverage**: Below threshold — add tests or adjust thresholds"
+          elif [ "$COVERAGE_RESULT" = "success" ]; then
+            PASSED="$PASSED\\n- **Coverage**: All checks passed"
+          fi
+
+          # Build comment body
+          BODY="## CI Results\\n"
+
+          if [ -n "$BLOCKING" ]; then
+            BODY="$BODY\\n### BLOCKING (must fix)\\n$BLOCKING\\n"
+          fi
+
+          if [ -n "$WARNINGS" ]; then
+            BODY="$BODY\\n### WARNINGS (non-blocking)\\n$WARNINGS\\n"
+          fi
+
+          if [ -n "$PASSED" ]; then
+            BODY="$BODY\\n### Passed\\n$PASSED\\n"
+          fi
+
+          if [ -z "$BLOCKING" ] && [ -z "$WARNINGS" ]; then
+            BODY="$BODY\\n✅ All checks passed!"
+          fi
+
+          # Post or update PR comment (--edit-last avoids spam)
+          echo -e "$BODY" | gh pr comment "$PR_NUMBER" --body-file - --edit-last 2>/dev/null || \\
+          echo -e "$BODY" | gh pr comment "$PR_NUMBER" --body-file -
+`
       : '      # PR comment step not enabled (use --pr-comments to add)'
     updated = updated.replace('# PR_COMMENTS_PLACEHOLDER', prSteps)
   }
 
   return updated
+}
+
+function injectSplitCoverage(workflowContent, enabled = false) {
+  if (!workflowContent.includes('# SPLIT_COVERAGE_PLACEHOLDER')) {
+    return workflowContent
+  }
+
+  if (enabled) {
+    const coverageStep = `      - name: Run coverage check
+        id: coverage
+        continue-on-error: true
+        run: |
+          echo "📊 Running coverage check (non-blocking)..."
+          npm run test:coverage 2>&1
+          echo "coverage-result=${'$'}?" >> "$GITHUB_OUTPUT"`
+    return workflowContent.replace(
+      '      # SPLIT_COVERAGE_PLACEHOLDER',
+      coverageStep
+    )
+  }
+
+  return workflowContent.replace(
+    '      # SPLIT_COVERAGE_PLACEHOLDER',
+    '      # Split coverage not enabled (use --split-coverage to add)'
+  )
 }
 
 /**
@@ -499,6 +591,7 @@ function parseArguments(rawArgs) {
       : 'github'
   const enableSlackAlerts = sanitizedArgs.includes('--alerts-slack')
   const enablePrComments = sanitizedArgs.includes('--pr-comments')
+  const enableSplitCoverage = sanitizedArgs.includes('--split-coverage')
 
   // Custom template directory - use raw args to preserve valid path characters (&, <, >, etc.)
   // Normalize path to prevent traversal attacks and make absolute
@@ -565,6 +658,7 @@ function parseArguments(rawArgs) {
     ciProvider,
     enableSlackAlerts,
     enablePrComments,
+    enableSplitCoverage,
     customTemplatePath,
     disableNpmAudit,
     disableGitleaks,
@@ -609,6 +703,7 @@ function parseArguments(rawArgs) {
     ciProvider,
     enableSlackAlerts,
     enablePrComments,
+    enableSplitCoverage,
     customTemplatePath,
     disableNpmAudit,
     disableGitleaks,
@@ -657,6 +752,7 @@ function parseArguments(rawArgs) {
       ciProvider,
       enableSlackAlerts,
       enablePrComments,
+      enableSplitCoverage,
       customTemplatePath,
       disableNpmAudit,
       disableGitleaks,
@@ -734,9 +830,12 @@ GRANULAR TOOL CONTROL:
   --no-markdownlint      Disable markdownlint markdown formatting checks
   --no-eslint-security   Disable ESLint security rule checking
 
+CI BEHAVIOR:
+  --split-coverage      Split test execution from coverage enforcement (coverage is non-blocking)
+
 ALERTING & COLLABORATION (GitHub CI):
   --alerts-slack        Add Slack webhook notification step (expects secret SLACK_WEBHOOK_URL)
-  --pr-comments         Add PR summary comment step (uses GitHub token)
+  --pr-comments         Add actionable PR comment with BLOCKING/WARNINGS classification
 
 EXAMPLES:
   npx create-qa-architect@latest
@@ -1635,6 +1734,12 @@ HELP:
           // Inject matrix testing if enabled (for library authors)
           templateWorkflow = injectMatrix(templateWorkflow, isMatrixEnabled)
 
+          // Inject split coverage if enabled
+          templateWorkflow = injectSplitCoverage(
+            templateWorkflow,
+            enableSplitCoverage
+          )
+
           // Inject collaboration steps
           templateWorkflow = injectCollaborationSteps(templateWorkflow, {
             enableSlackAlerts,
@@ -1670,13 +1775,19 @@ HELP:
             // Inject matrix testing if enabled (for library authors)
             templateWorkflow = injectMatrix(templateWorkflow, isMatrixEnabled)
 
-            // Inject collaboration steps (preserve from existing if present)
+            // Inject split coverage (preserve from existing if present)
             const existingWorkflow = fs.readFileSync(workflowFile, 'utf8')
+            const hasSplitCoverage =
+              existingWorkflow.includes('Run coverage check')
+            templateWorkflow = injectSplitCoverage(
+              templateWorkflow,
+              hasSplitCoverage || enableSplitCoverage
+            )
+
+            // Inject collaboration steps (preserve from existing if present)
             const hasSlackAlerts =
               existingWorkflow.includes('SLACK_WEBHOOK_URL')
-            const hasPrComments = existingWorkflow.includes(
-              'PR_COMMENT_PLACEHOLDER'
-            )
+            const hasPrComments = existingWorkflow.includes('gh pr comment')
 
             templateWorkflow = injectCollaborationSteps(templateWorkflow, {
               enableSlackAlerts: hasSlackAlerts,

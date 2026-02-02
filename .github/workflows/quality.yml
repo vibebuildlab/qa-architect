@@ -327,6 +327,8 @@ jobs:
             exit 1
           }
 
+      # SPLIT_COVERAGE_PLACEHOLDER
+
       - name: Cache gitleaks binary for real download test
         if: runner.os == 'Linux'
         uses: actions/cache@v5
@@ -547,6 +549,6 @@ jobs:
           else
             echo "- ⚠️ Documentation: $DOCS_RESULT" >> $GITHUB_STEP_SUMMARY
           fi
-            # PR comment step not enabled (use --pr-comments to add)
+            # PR_COMMENTS_PLACEHOLDER
 
-  # Slack alerts not enabled (use --alerts-slack to add)
+  # ALERTS_PLACEHOLDER
