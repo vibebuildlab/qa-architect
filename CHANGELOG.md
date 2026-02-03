@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.11.3] - 2026-02-03
+
+### Fixed
+
+- **Auto-install commitlint dependencies**: Commitlint dependencies now automatically added to package.json
+  - Added `commitlint`, `@commitlint/cli`, `@commitlint/config-conventional` to baseDevDependencies
+  - Updated commitlint versions from ^19.0.0 to ^20.4.1
+  - Fixes issue where commit-msg hook would fail because dependencies weren't installed
+  - Previously, commitlint hook was created but dependencies were only added if quality tools were enabled
+  - Now all projects get commitlint dependencies automatically during setup
+
 ## [5.11.2] - 2026-02-03
 
 ### Fixed
