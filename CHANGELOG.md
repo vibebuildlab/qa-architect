@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.11.2] - 2026-02-03
+
+### Fixed
+
+- **GitHub Actions Cost Reduction (~50%)**: Skip Quality Checks for Dependabot PRs
+  - Added `if: github.actor != 'dependabot[bot]'` condition to detect-maturity job
+  - Dependabot PRs auto-merge based on their own checks, no need for duplicate CI
+  - Reduces workflow runs by ~50% on repos with active Dependabot
+- **Updated CI Cost Analysis**: Replaced inaccurate estimates with actual January data
+  - Old doc claimed 77,000 mins/month (was 100x off)
+  - Actual usage: ~2,400 mins/month
+  - Main cost driver identified: Dependabot PR spam (56% of all runs)
+
 ## [5.11.1] - 2026-01-31
 
 ### Fixed
