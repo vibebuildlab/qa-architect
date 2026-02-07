@@ -441,6 +441,20 @@ jobs:
       'Should have simplified report indicating minimal mode'
     )
 
+    // Verify dev-only gitleaks steps are REMOVED in minimal mode
+    assert(
+      !workflowContent.includes('Cache gitleaks binary for real download test'),
+      'Minimal mode should NOT have gitleaks cache step'
+    )
+    assert(
+      !workflowContent.includes('Run real gitleaks binary verification test'),
+      'Minimal mode should NOT have gitleaks binary verification step'
+    )
+    assert(
+      !workflowContent.includes('gitleaks-real-binary-test.js'),
+      'Minimal mode should NOT reference gitleaks-real-binary-test.js'
+    )
+
     console.log(
       '✅ PASS - Minimal mode skips expensive steps, uses hardcoded outputs\n'
     )
@@ -616,6 +630,20 @@ jobs:
     assert(
       installIndex < maturityIndex,
       'Dependency installation should come before maturity detection'
+    )
+
+    // Verify dev-only gitleaks steps are RETAINED in standard mode
+    assert(
+      workflowContent.includes('Cache gitleaks binary for real download test'),
+      'Standard mode should retain gitleaks cache step'
+    )
+    assert(
+      workflowContent.includes('Run real gitleaks binary verification test'),
+      'Standard mode should retain gitleaks binary verification step'
+    )
+    assert(
+      workflowContent.includes('gitleaks-real-binary-test.js'),
+      'Standard mode should retain gitleaks-real-binary-test.js reference'
     )
 
     console.log('✅ PASS - Standard mode retains full maturity detection\n')
