@@ -17,6 +17,8 @@
 | L-3 | Java support (Maven/Gradle)                   | Feature | Rev:4 Ret:4 Diff:3 | M      | 5.5   | Ready   |
 | T-1 | VS Code extension                             | Feature | Rev:4 Ret:5 Diff:3 | M      | 6.0   | Backlog |
 
+| CI-2 | Fix postrail: crypto.test.ts tests taking 12.7s (investigate root cause, not timeout band-aid) | Bug | Rev:2 Ret:4 Diff:1 | S | 7.0 | Ready |
+
 ---
 
 ## 📊 Medium Value - Worth Doing
@@ -54,7 +56,6 @@
 | T-2  | Configurable performance budgets via .qualityrc.json           | Feature | 2026-02-06 |
 | CI-1 | Deploy hashFiles gitleaks fix to all vibebuildlab repos        | Bug     | 2026-02-06 |
 | B-2  | Respect .qualityrc.json lighthouse.enabled setting             | Bug     | 2026-02-06 |
-| CI-2 | Fix postrail test budget (raised 5min→10min)                   | Bug     | 2026-02-06 |
 | CI-3 | Fix keyflash prettier formatting                               | Bug     | 2026-02-06 |
 | CI-4 | Fix jobrecon prettier + .gitignore                             | Bug     | 2026-02-06 |
 | CI-5 | Fix retireabroad @size-limit/file peer dep                     | Bug     | 2026-02-06 |
