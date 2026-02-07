@@ -17,7 +17,6 @@
 | L-2 | Go support                                         | Feature | Rev:3 Ret:4 Diff:4 | M      | 5.5   | Ready   |
 | L-3 | Java support (Maven/Gradle)                        | Feature | Rev:4 Ret:4 Diff:3 | M      | 5.5   | Ready   |
 | T-1 | VS Code extension                                  | Feature | Rev:4 Ret:5 Diff:3 | M      | 6.0   | Backlog |
-| T-2 | Performance budgets                                | Feature | Rev:3 Ret:4 Diff:4 | S      | 11.0  | Ready   |
 
 | CI-1 | Fix CI: deploy B-1 template fix (hashFiles conditional for gitleaks test) to ALL repos with quality.yml — check every vibebuildlab repo | Bug | Rev:2 Ret:5 Diff:2 | S | 9.0 | Ready |
 | CI-2 | Fix CI: postrail — tests exceed 5-min budget (optimize slow tests or raise budget) | Bug | Rev:2 Ret:4 Diff:1 | S | 7.0 | Ready |
@@ -59,6 +58,7 @@
 | -   | Stripe payment flow                                            | Feature | 2025-12-XX |
 | B-1 | Remove dev-only gitleaks test from consumer workflows          | Bug     | 2026-02-06 |
 | B-3 | Fix gitleaks TOML template errors and overly broad base64 rule | Bug     | 2026-02-06 |
+| T-2 | Configurable performance budgets via .qualityrc.json           | Feature | 2026-02-06 |
 
 ---
 
