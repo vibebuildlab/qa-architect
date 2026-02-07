@@ -53,6 +53,11 @@ const QA_ARCHITECT_ONLY_CONTENT = [
   'gitleaks-8.28.0-linux-x64-a65b5253',
 ]
 
+const CONSUMER_FORBIDDEN_CONTENT = [
+  ...QA_ARCHITECT_ONLY_CONTENT,
+  'node_modules/create-qa-architect',
+]
+
 const SECTION_MARKERS = [
   '{{QA_ARCHITECT_ONLY_BEGIN}}',
   '{{QA_ARCHITECT_ONLY_END}}',
@@ -62,11 +67,11 @@ const SECTION_MARKERS = [
   '{{FULL_REPORT_END}}',
 ]
 
-function assertNoQaArchitectContent(content, tier) {
-  for (const forbidden of QA_ARCHITECT_ONLY_CONTENT) {
+function assertNoConsumerForbiddenContent(content, tier) {
+  for (const forbidden of CONSUMER_FORBIDDEN_CONTENT) {
     assert(
       !content.includes(forbidden),
-      `${tier} workflow must NOT contain qa-architect-only content: "${forbidden}"`
+      `${tier} workflow must NOT contain consumer-forbidden content: "${forbidden}"`
     )
   }
 }
@@ -118,7 +123,7 @@ const setupPath = path.join(__dirname, '../setup.js')
       'utf8'
     )
 
-    assertNoQaArchitectContent(content, 'Minimal')
+    assertNoConsumerForbiddenContent(content, 'Minimal')
     assertNoSectionMarkers(content, 'Minimal')
     assertValidYamlStructure(content, 'Minimal')
 
@@ -188,7 +193,7 @@ const setupPath = path.join(__dirname, '../setup.js')
       'utf8'
     )
 
-    assertNoQaArchitectContent(content, 'Standard')
+    assertNoConsumerForbiddenContent(content, 'Standard')
     assertNoSectionMarkers(content, 'Standard')
     assertValidYamlStructure(content, 'Standard')
 
@@ -244,7 +249,7 @@ const setupPath = path.join(__dirname, '../setup.js')
       'utf8'
     )
 
-    assertNoQaArchitectContent(content, 'Comprehensive')
+    assertNoConsumerForbiddenContent(content, 'Comprehensive')
     assertNoSectionMarkers(content, 'Comprehensive')
     assertValidYamlStructure(content, 'Comprehensive')
 

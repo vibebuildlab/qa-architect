@@ -108,14 +108,13 @@ jobs:
       - name: Detect Project Maturity
         id: detect
         run: |
-          # Use the project maturity detector (local for qa-architect itself, node_modules for other projects)
+          # Use the project maturity detector (local for qa-architect itself, npx for consumer projects)
           if [ -f lib/project-maturity.js ]; then
             node lib/project-maturity.js --github-actions >> $GITHUB_OUTPUT
           else
-            node node_modules/create-qa-architect/lib/project-maturity.js --github-actions >> $GITHUB_OUTPUT
+            npx create-qa-architect@latest --check-maturity --github-actions >> $GITHUB_OUTPUT
           fi
       # {{FULL_DETECTION_END}}
-
       # {{FULL_REPORT_BEGIN}}
       - name: Display Detection Report
         run: |
@@ -255,7 +254,7 @@ jobs:
           if [ -f setup.js ]; then
             node setup.js --security-config
           else
-            node node_modules/create-qa-architect/setup.js --security-config
+            npx create-qa-architect@latest --security-config
           fi
 
       - name: Security pattern detection
@@ -389,7 +388,7 @@ jobs:
           if [ -f setup.js ]; then
             node setup.js --security-config
           else
-            node node_modules/create-qa-architect/setup.js --security-config
+            npx create-qa-architect@latest --security-config
           fi
 
       - name: Documentation validation
@@ -398,7 +397,7 @@ jobs:
           if [ -f setup.js ]; then
             node setup.js --validate-docs
           else
-            node node_modules/create-qa-architect/setup.js --validate-docs
+            npx create-qa-architect@latest --validate-docs
           fi
 
       - name: Documentation consistency and security audit freshness
@@ -408,7 +407,7 @@ jobs:
           if [ -f scripts/check-docs.sh ]; then
             bash scripts/check-docs.sh
           else
-            bash node_modules/create-qa-architect/scripts/check-docs.sh
+            echo "No check-docs.sh found - skipping documentation consistency check"
           fi
 
       - name: Package size and contents validation

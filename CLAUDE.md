@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**npm**: `create-qa-architect` | **Version**: 5.12.0
+**npm**: `create-qa-architect` | **Version**: 5.12.1
 
 ## Project Overview
 
@@ -103,6 +103,23 @@ Implementation:
 
 See `docs/CI-COST-ANALYSIS.md` for full analysis and `tests/workflow-tiers.test.js` for test patterns.
 
+### Template-as-Product Contract
+
+`quality.yml` is both qa-architect's own CI AND the template deployed to 15+ consumer repos. Every template change is a multi-repo product deployment.
+
+Rules:
+
+- Never reference `node_modules/create-qa-architect` — consumers use `npx @latest`, not a devDep
+- Never use `\s*` in YAML cleanup regexes — `\s` matches `\n` and collapses lines. Use `[ \t]*`
+- Conditional content uses section markers (`# {{NAME_BEGIN/END}}`) stripped by `stripSection()` in `workflow-config.js`
+- `CONSUMER_FORBIDDEN_CONTENT` in `consumer-workflow-integration.test.js` gates what can appear in consumer output
+
+Validation:
+
+- `node tests/consumer-workflow-integration.test.js` — validates all 3 tiers
+- `./scripts/deploy-consumers.sh` — auto-discovers and validates all local consumer repos
+- `./scripts/deploy-consumers.sh --push` — regenerate + commit + push to all consumers
+
 ## Key Files
 
 - `setup.js:390-500` - Main entry, interactive mode handling
@@ -145,3 +162,5 @@ No OTP/2FA codes needed. The `.github/workflows/release.yml` workflow handles pu
 - Version in `package.json` changes
 - All tests pass
 - Pushed to `main` branch
+
+After publishing, deploy to consumer repos: `./scripts/deploy-consumers.sh --push`
