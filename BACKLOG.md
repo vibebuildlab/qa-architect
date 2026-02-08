@@ -59,7 +59,7 @@
 | B-1  | Remove dev-only gitleaks test from consumer workflows            | Bug     | 2026-02-06 |
 | B-3  | Fix gitleaks TOML template errors and overly broad base64 rule   | Bug     | 2026-02-06 |
 | T-2  | Configurable performance budgets via .qualityrc.json             | Feature | 2026-02-06 |
-| CI-1 | Deploy hashFiles gitleaks fix to all vibebuildlab repos          | Bug     | 2026-02-06 |
+| CI-1 | Deploy hashFiles gitleaks fix to all buildproven repos           | Bug     | 2026-02-06 |
 | B-2  | Respect .qualityrc.json lighthouse.enabled setting               | Bug     | 2026-02-06 |
 | CI-3 | Fix keyflash prettier formatting                                 | Bug     | 2026-02-06 |
 | CI-4 | Fix jobrecon prettier + .gitignore                               | Bug     | 2026-02-06 |
