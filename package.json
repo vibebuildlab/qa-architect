@@ -118,7 +118,7 @@
     }
   },
   "devDependencies": {
-    "@commitlint/cli": "^19.0.0",
+    "@commitlint/cli": "^20.4.1",
     "@commitlint/config-conventional": "^19.0.0",
     "@lhci/cli": "^0.15.1",
     "@size-limit/file": "^11.0.0",
