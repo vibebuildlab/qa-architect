@@ -87,8 +87,8 @@ function createTempGitRepo() {
       'Should have schedule trigger'
     )
     assert(
-      workflowContent.includes("cron: '0 0 * * 0'"),
-      'Should have weekly cron'
+      workflowContent.includes("cron: '0 0 1 * *'"),
+      'Should have monthly cron'
     )
 
     // Check for single Node version
