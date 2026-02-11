@@ -1,5 +1,7 @@
 'use strict'
 
+// @ts-nocheck — test mocks use internal Node APIs (Module._resolveFilename, require.cache)
+
 /**
  * Unit tests for lib/blob-storage.js
  * Mocks @vercel/blob to test load/save logic without real Vercel infra.
