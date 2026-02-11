@@ -13,15 +13,21 @@ const Module = require('module')
 // --- Mock @vercel/blob ---
 const mockStore = new Map()
 let putCallArgs = null
+let putShouldThrow = false
+let headOverride = null
 
 const mockBlob = {
   put: async (path, content, options) => {
+    if (putShouldThrow) {
+      throw new Error('Blob store unavailable')
+    }
     putCallArgs = { path, content, options }
     const url = `https://blob.vercel-storage.com/${path}`
     mockStore.set(path, { url, content })
     return { url, pathname: path }
   },
   head: async path => {
+    if (headOverride) return headOverride(path)
     if (!mockStore.has(path)) {
       const err = new Error('Blob not found')
       err.code = 'blob_not_found'
@@ -126,14 +132,68 @@ async function testBlobPathsExist() {
   console.log('  ✅ BLOB_PATHS constants are correct')
 }
 
-async function testLoadBlobHandlesFetchFailure() {
-  console.log('  Testing loadBlob handles fetch failure gracefully...')
+async function testLoadBlobThrowsOnFetchFailure() {
+  console.log('  Testing loadBlob throws on non-ok fetch response...')
+  // Override fetch to return non-ok for this specific test
+  const prevFetch = global.fetch
+  mockStore.set('bad/fetch.json', {
+    url: 'https://blob.vercel-storage.com/bad/fetch.json',
+  })
+  global.fetch = async () => ({ ok: false, status: 503 })
+  await assert.rejects(
+    () => loadBlob('bad/fetch.json'),
+    /Blob fetch failed.*HTTP 503/,
+    'Should throw on non-ok fetch'
+  )
+  global.fetch = prevFetch
+  console.log('  ✅ loadBlob throws on fetch failure')
+}
 
-  // Put a blob with valid head but make fetch fail
-  mockStore.set('bad/fetch.json', { url: 'https://will-not-match.com/x' })
-  const result = await loadBlob('bad/fetch.json')
-  assert.strictEqual(result, null, 'Should return null on fetch failure')
-  console.log('  ✅ loadBlob returns null on fetch failure')
+async function testLoadBlobThrowsOnInfraError() {
+  console.log('  Testing loadBlob throws on infrastructure errors...')
+  headOverride = async () => {
+    throw new Error('Network timeout')
+  }
+  await assert.rejects(
+    () => loadBlob('any/path.json'),
+    /Blob head failed.*Network timeout/,
+    'Should throw on head() infra error'
+  )
+  headOverride = null
+  console.log('  ✅ loadBlob throws on infrastructure error')
+}
+
+async function testLoadBlobThrowsOnCorruptJson() {
+  console.log('  Testing loadBlob throws on corrupt JSON...')
+  mockStore.set('corrupt/data.json', {
+    url: 'https://blob.vercel-storage.com/corrupt/data.json',
+    content: '<html>not json</html>',
+  })
+  // Need fetch to return this content
+  const prevFetch = global.fetch
+  global.fetch = async () => ({
+    ok: true,
+    json: async () => JSON.parse('<html>not json</html>'),
+  })
+  await assert.rejects(
+    () => loadBlob('corrupt/data.json'),
+    /Blob JSON parse failed/,
+    'Should throw on corrupt JSON'
+  )
+  global.fetch = prevFetch
+  console.log('  ✅ loadBlob throws on corrupt JSON')
+}
+
+async function testSaveBlobThrowsOnPutError() {
+  console.log('  Testing saveBlob throws when put() fails...')
+  putShouldThrow = true
+  await assert.rejects(
+    () => saveBlob('fail/path.json', { x: 1 }),
+    /Blob store unavailable/,
+    'Should throw on put() failure'
+  )
+  putShouldThrow = false
+  console.log('  ✅ saveBlob throws on put() error')
 }
 
 async function runTests() {
@@ -144,7 +204,10 @@ async function runTests() {
     await testSaveBlobCallsPutCorrectly()
     await testRoundTrip()
     await testBlobPathsExist()
-    await testLoadBlobHandlesFetchFailure()
+    await testLoadBlobThrowsOnFetchFailure()
+    await testLoadBlobThrowsOnInfraError()
+    await testLoadBlobThrowsOnCorruptJson()
+    await testSaveBlobThrowsOnPutError()
 
     console.log('\n✅ All blob-storage tests passed!\n')
   } finally {

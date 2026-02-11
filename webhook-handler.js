@@ -191,45 +191,36 @@ async function loadLicenseDatabase() {
 let writeQueue = Promise.resolve()
 
 function queueDatabaseWrite(task) {
-  const next = writeQueue.then(task, task)
-  // Chain error handling but re-throw so callers can handle
-  writeQueue = next.catch(error => {
-    // Silent failure fix: Log write queue errors
-    console.error(`⚠️  Database write queue error: ${error.message}`)
-    throw error // Re-throw to propagate to caller
-  })
-  return writeQueue
+  const next = writeQueue.then(task)
+  // Keep queue chain alive regardless of failure so subsequent writes work
+  writeQueue = next.catch(() => {})
+  // Return the actual result/error to the caller
+  return next
 }
 
 /**
  * Save legitimate license database to Vercel Blob
  */
 async function saveLicenseDatabase(database) {
-  try {
-    // Compute integrity hash over licenses (excluding metadata)
-    // eslint-disable-next-line no-unused-vars -- destructuring to exclude _metadata from licenses
-    const { _metadata, ...licenses } = database
-    const sha = crypto
-      .createHash('sha256')
-      .update(stableStringify(licenses))
-      .digest('hex')
+  // Compute integrity hash over licenses (excluding metadata)
+  // eslint-disable-next-line no-unused-vars -- destructuring to exclude _metadata from licenses
+  const { _metadata, ...licenses } = database
+  const sha = crypto
+    .createHash('sha256')
+    .update(stableStringify(licenses))
+    .digest('hex')
 
-    database._metadata = {
-      ...(database._metadata || {}),
-      lastSave: new Date().toISOString(),
-      sha256: sha,
-    }
-
-    const privateResult = await saveBlob(BLOB_PATHS.private, database)
-    if (!privateResult) return false
-
-    const publicRegistry = buildPublicRegistry(database)
-    const publicResult = await saveBlob(BLOB_PATHS.public, publicRegistry)
-    return !!publicResult
-  } catch (error) {
-    console.error('Error saving license database:', error.message)
-    return false
+  database._metadata = {
+    ...(database._metadata || {}),
+    lastSave: new Date().toISOString(),
+    sha256: sha,
   }
+
+  // saveBlob throws on failure — let it propagate
+  await saveBlob(BLOB_PATHS.private, database)
+  const publicRegistry = buildPublicRegistry(database)
+  await saveBlob(BLOB_PATHS.public, publicRegistry)
+  return true
 }
 
 function buildPublicRegistry(database) {
@@ -293,7 +284,11 @@ async function loadPublicRegistry() {
 
   const privateDb = await loadLicenseDatabase()
   const built = buildPublicRegistry(privateDb)
-  await saveBlob(BLOB_PATHS.public, built)
+  try {
+    await saveBlob(BLOB_PATHS.public, built)
+  } catch (error) {
+    console.warn('Failed to cache public registry:', error.message)
+  }
   return built
 }
 
@@ -559,8 +554,8 @@ async function handleSubscriptionCanceled(subscription) {
   console.log(`❌ Subscription canceled: ${subscription.id}`)
   console.log(`   Customer: ${subscription.customer}`)
 
-  try {
-    // DR4 fix: Implement license deactivation with proper error handling
+  // Route through write queue to prevent race conditions with concurrent webhooks
+  await queueDatabaseWrite(async () => {
     const database = await loadLicenseDatabase()
     let licenseFound = false
 
@@ -576,25 +571,12 @@ async function handleSubscriptionCanceled(subscription) {
 
     if (!licenseFound) {
       console.warn(`⚠️  No license found for subscription ${subscription.id}`)
-      return // Not an error - license may have been manually removed
+      return
     }
 
-    const saveResult = await saveLicenseDatabase(database)
-    if (!saveResult) {
-      throw new Error(
-        `Failed to save license cancellation for subscription ${subscription.id}`
-      )
-    }
-
+    await saveLicenseDatabase(database)
     console.log(`✅ License deactivated for subscription ${subscription.id}`)
-  } catch (error) {
-    // DR4 fix: Re-throw to trigger webhook retry instead of silently failing
-    console.error(`❌ CRITICAL: Subscription cancellation processing failed`)
-    console.error(`   Subscription: ${subscription.id}`)
-    console.error(`   Error: ${error.message}`)
-    console.error(`   ACTION REQUIRED: Manually deactivate license`)
-    throw error
-  }
+  })
 }
 
 /**
@@ -602,18 +584,29 @@ async function handleSubscriptionCanceled(subscription) {
  * DR19 fix: Add rate limiting to prevent DoS
  */
 app.get('/health', healthRateLimiter.middleware(), async (req, res) => {
+  const { head: blobHead } = require('@vercel/blob')
   try {
-    const db = await loadBlob(BLOB_PATHS.private)
+    await blobHead(BLOB_PATHS.private)
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      database: db ? 'exists' : 'missing',
+      database: 'exists',
     })
-  } catch {
-    res.json({
-      status: 'ok',
+  } catch (error) {
+    const isNotFound =
+      error.code === 'blob_not_found' || error.name === 'BlobNotFoundError'
+    if (isNotFound) {
+      return res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        database: 'missing',
+      })
+    }
+    console.error('Health check: database unreachable:', error.message)
+    res.status(503).json({
+      status: 'degraded',
       timestamp: new Date().toISOString(),
-      database: 'unknown',
+      database: 'unreachable',
     })
   }
 })
@@ -625,18 +618,14 @@ app.get('/health', healthRateLimiter.middleware(), async (req, res) => {
  * the latest legitimate licenses for validation
  * DR19 fix: Add rate limiting to prevent abuse
  */
-app.get('/legitimate-licenses.json', dbRateLimiter.middleware(), async (req, res) => {
+async function serveLicenseDatabase(req, res) {
   try {
     const database = await loadPublicRegistry()
-
-    // Add CORS headers for CLI access
     res.header('Access-Control-Allow-Origin', '*')
     res.header('Access-Control-Allow-Methods', 'GET')
-    res.header('Cache-Control', 'public, max-age=300') // Cache for 5 minutes
-
+    res.header('Cache-Control', 'public, max-age=300')
     res.json(database)
   } catch (error) {
-    // DR9 fix: Return proper error status so clients know to retry with cache
     console.error('Failed to serve license database:', error.message)
     res.status(503).json({
       error: 'License database temporarily unavailable',
@@ -644,7 +633,9 @@ app.get('/legitimate-licenses.json', dbRateLimiter.middleware(), async (req, res
       retryAfter: 60,
     })
   }
-})
+}
+
+app.get('/legitimate-licenses.json', dbRateLimiter.middleware(), serveLicenseDatabase)
 
 /**
  * License database status endpoint
@@ -701,31 +692,13 @@ app.get('/status', async (req, res) => {
       recentLicenses: maskedRecent,
     })
   } catch (error) {
-    res.status(500).json({ error: error.message })
+    console.error('Status endpoint error:', error.message)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 // Route alias: CLI fetches /api/licenses/qa-architect.json by default
-app.get(
-  '/api/licenses/qa-architect.json',
-  dbRateLimiter.middleware(),
-  async (req, res) => {
-    try {
-      const database = await loadPublicRegistry()
-      res.header('Access-Control-Allow-Origin', '*')
-      res.header('Access-Control-Allow-Methods', 'GET')
-      res.header('Cache-Control', 'public, max-age=300')
-      res.json(database)
-    } catch (error) {
-      console.error('Failed to serve license database:', error.message)
-      res.status(503).json({
-        error: 'License database temporarily unavailable',
-        message: 'Please retry shortly or use cached license data',
-        retryAfter: 60,
-      })
-    }
-  }
-)
+app.get('/api/licenses/qa-architect.json', dbRateLimiter.middleware(), serveLicenseDatabase)
 
 // Start server (Vercel handles listening via module.exports)
 if (!process.env.VERCEL) {
